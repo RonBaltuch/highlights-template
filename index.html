@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="UTF-8">
+<title>Highlights Template</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #0d0d0d;
+  font-family: -apple-system, Arial, sans-serif;
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 14px; gap: 10px; color: #fff; user-select: none;
+}
+
+/* ── Toolbar shell ── */
+#toolbar {
+  width: 100%; max-width: 1100px;
+  background: #181818; border-radius: 14px;
+  padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;
+}
+.tb-top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
+
+/* Format tabs */
+.fmt-grp { display: flex; background: #111; border-radius: 9px; padding: 3px; gap: 3px; }
+.fmt-btn { background: transparent; border: none; color: #666; padding: 6px 14px; border-radius: 6px;
+  cursor: pointer; font-size: 13px; font-weight: 700; transition: all .2s; }
+.fmt-btn.on { background: #fff; color: #111; }
+
+/* Unit tabs */
+.unit-tab-grp { display: flex; gap: 3px; }
+.unit-tab { border: none; padding: 6px 14px; border-radius: 8px; cursor: pointer;
+  font-size: 12px; font-weight: 700; transition: all .2s; }
+.unit-tab[data-u="logo"]     { background: #1a1a2e; color: #818cf8; }
+.unit-tab[data-u="titles"]   { background: #1a2a1a; color: #4ade80; }
+.unit-tab[data-u="profiles"] { background: #2a1a1a; color: #f87171; }
+.unit-tab.on[data-u="logo"]     { background: #818cf8; color: #fff; }
+.unit-tab.on[data-u="titles"]   { background: #4ade80; color: #111; }
+.unit-tab.on[data-u="profiles"] { background: #f87171; color: #fff; }
+
+/* Generic buttons */
+.btn { background: #242424; border: none; color: #ccc; padding: 7px 13px; border-radius: 8px;
+  cursor: pointer; font-size: 12px; font-weight: 600; transition: all .2s; white-space: nowrap; }
+.btn:hover { background: #333; color: #fff; }
+
+/* Export dropdown */
+.exp-wrap { position: relative; }
+.exp-drop { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  background: #1c1c1c; border: 1px solid #333; border-radius: 10px;
+  display: none; z-index: 200; min-width: 195px; box-shadow: 0 8px 32px rgba(0,0,0,.6); overflow: hidden; }
+.exp-drop.open { display: block; }
+.exp-opt { padding: 10px 15px; color: #ccc; cursor: pointer; font-size: 13px;
+  display: flex; justify-content: space-between; }
+.exp-opt:hover { background: #2c2c2c; color: #fff; }
+.exp-custom { padding: 9px 10px; border-top: 1px solid #333; display: flex; gap: 5px; }
+.exp-custom input { background: #111; border: 1px solid #333; color: #fff; border-radius: 6px;
+  padding: 5px 7px; font-size: 12px; width: 65px; text-align: center; outline: none; }
+.exp-custom button { background: #2563eb; border: none; color: #fff; padding: 5px 10px;
+  border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700; }
+
+/* Controls panel (per unit) */
+.ctrl-panel { display: none; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.ctrl-panel.visible { display: flex; }
+
+.sl-row { display: flex; align-items: center; gap: 7px; background: #111; border-radius: 8px; padding: 6px 10px; }
+.sl-row label { font-size: 11px; color: #888; white-space: nowrap; min-width: 80px; }
+input[type=range] { width: 80px; accent-color: #fff; cursor: pointer; }
+.sl-val { font-size: 11px; color: #aaa; min-width: 22px; text-align: right; }
+
+/* Hint */
+#hint { color: #3a3a3a; font-size: 11px; text-align: center; }
+
+/* ── Canvas scaler ── */
+#scaler { transform-origin: top center; }
+
+/* ── Canvas ── */
+#canvas { background: #fff; position: relative; overflow: hidden; }
+#canvas-inner { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-origin: 0 0; }
+
+/* ── Draggable unit wrapper ── */
+.canvas-unit {
+  position: absolute;
+  cursor: default;
+}
+/* Drag handle — top-left grip icon, hidden on export */
+.unit-handle {
+  position: absolute; top: 4px; left: 4px;
+  width: 28px; height: 20px;
+  background: rgba(0,0,0,0); border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab; font-size: 11px; color: transparent;
+  transition: background .15s, color .15s;
+  z-index: 50;
+}
+.canvas-unit:hover .unit-handle { background: rgba(99,102,241,.85); color: #fff; }
+.canvas-unit.dragging-unit .unit-handle { cursor: grabbing; }
+
+/* ── Person reorder handle ── */
+.person-handle {
+  position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
+  width: 26px; height: 16px; border-radius: 5px;
+  background: rgba(0,0,0,0);
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab; font-size: 10px; color: transparent;
+  transition: background .15s, color .15s; z-index: 25;
+}
+.person:hover .person-handle { background: rgba(99,102,241,.85); color: #fff; }
+body.exporting .person-handle { display: none !important; }
+/* Hover outline per unit color */
+.canvas-unit[data-unit="logo"]:hover     { outline: 1.5px dashed rgba(129,140,248,.55); }
+.canvas-unit[data-unit="titles"]:hover   { outline: 1.5px dashed rgba(74,222,128,.55); }
+.canvas-unit[data-unit="profiles"]:hover { outline: 1.5px dashed rgba(248,113,113,.55); }
+body.exporting .unit-handle { display: none !important; }
+body.exporting .canvas-unit { outline: none !important; }
+
+/* ── Editable text ── */
+[contenteditable] {
+  outline: none; border: 1.5px dashed transparent; border-radius: 3px;
+  padding: 1px 5px; cursor: text; transition: border-color .15s;
+}
+[contenteditable]:hover  { border-color: rgba(59,130,246,.35); }
+[contenteditable]:focus  { border-color: #3b82f6; background: rgba(59,130,246,.06); }
+body.exporting [contenteditable] { border-color: transparent !important; background: transparent !important; }
+
+/* ── Instagram gradient (official brand colors) ── */
+.ig-grad { background: linear-gradient(115deg, #F09433 0%, #E6683C 20%, #DC2743 40%, #CC2366 65%, #BC1888 100%); }
+
+/* ── Logo layers ── */
+.logo-outer { border-radius: 50%; display: flex; align-items: center; justify-content: center; position: relative; }
+.logo-outer:hover::after {
+  content: "Change logo"; position: absolute; inset: 0; border-radius: 50%;
+  background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 13px; font-weight: 600; z-index: 2; cursor: pointer;
+}
+.logo-white { border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.logo-img { width: 100%; height: 100%; object-fit: contain; }
+.logo-ph  { color: #bbb; text-align: center; line-height: 1.4; pointer-events: none; }
+
+/* ── Emoji bubble ── */
+#emoji-bubble {
+  position: absolute; border-radius: 50%; background: #fff;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,.18), 0 0 0 2px rgba(0,0,0,.05);
+  cursor: pointer; z-index: 30; transition: transform .15s;
+}
+#emoji-bubble:hover { transform: scale(1.1); }
+
+/* ── Title block ── */
+#unit-titles { direction: rtl; }
+#main-title { font-weight: 700; color: #111; direction: rtl; text-align: right; display: block; min-width: 40px; }
+#subtitle   { font-weight: 400; color: #111; direction: rtl; text-align: right; display: block; min-width: 40px; }
+
+/* ── People area ── */
+#people-area {
+  display: flex; flex-direction: column; align-items: center;
+  overflow: hidden; gap: 0;
+}
+.people-row {
+  display: flex; flex-direction: row; justify-content: center;
+  align-items: flex-start; overflow: hidden;
+}
+
+/* person card */
+.person { display: flex; flex-direction: column; align-items: center; position: relative; cursor: default; }
+.person.dragging { opacity: .3; }
+.person.drop-target .ring-outer { box-shadow: 0 0 0 3px #3b82f6; border-radius: 50%; }
+
+.ring-outer { border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  cursor: grab; transition: transform .15s; flex-shrink: 0; }
+.ring-outer:hover { transform: scale(1.04); }
+.ring-outer:active { cursor: grabbing; }
+.ring-white { border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+
+.person-photo { border-radius: 50%; overflow: hidden; background: #e5e7eb;
+  display: flex; align-items: center; justify-content: center;
+  color: #9ca3af; text-align: center; line-height: 1.3; position: relative; pointer-events: all; }
+.person-photo img { width: 100%; height: 100%; object-fit: cover; object-position: center top; pointer-events: none; display: block; }
+.photo-ov { position: absolute; inset: 0; border-radius: 50%; background: rgba(0,0,0,.5); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-weight: 600;
+  opacity: 0; transition: opacity .15s; cursor: pointer; }
+.ring-outer:hover .photo-ov { opacity: 1; }
+
+.person-name { font-weight: 400; color: #111; text-align: center; direction: ltr;
+  min-width: 30px; transform-origin: center top; }
+
+.remove-btn { position: absolute; top: 0; right: 0;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #111; border: 2px solid #fff; color: #fff;
+  font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 20; opacity: 0; transition: opacity .15s; }
+.person:hover .remove-btn { opacity: 1; }
+body.exporting .remove-btn { display: none !important; }
+
+/* ── Emoji modal ── */
+#emo-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 1000; align-items: center; justify-content: center; }
+#emo-modal.open { display: flex; }
+.emo-box { background: #1c1c1c; border-radius: 14px; padding: 18px; width: 290px; display: flex; flex-direction: column; gap: 12px; }
+.emo-box h3 { font-size: 14px; }
+.emo-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.emo-opt { width: 40px; height: 40px; background: #2c2c2c; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; }
+.emo-opt:hover { background: #3c3c3c; }
+.emo-custom { display: flex; gap: 7px; }
+.emo-custom input { flex: 1; background: #2c2c2c; border: 1px solid #444; border-radius: 7px; padding: 7px 9px; color: #fff; font-size: 20px; text-align: center; outline: none; }
+.emo-custom button { background: #2563eb; border: none; color: #fff; padding: 7px 12px; border-radius: 7px; cursor: pointer; font-weight: 700; }
+.emo-close { background: #2c2c2c; border: none; color: #888; padding: 7px 12px; border-radius: 7px; cursor: pointer; font-size: 12px; align-self: flex-end; }
+</style>
+</head>
+<body>
+
+<!-- ══════════ TOOLBAR ══════════ -->
+<div id="toolbar">
+  <div class="tb-top">
+    <!-- Format -->
+    <div class="fmt-grp">
+      <button class="fmt-btn on" data-fmt="promo"   onclick="setFmt('promo')">🎬 Promo 16:9</button>
+      <button class="fmt-btn"    data-fmt="profile" onclick="setFmt('profile')">📱 Profile 1:1</button>
+      <button class="fmt-btn"    data-fmt="story"   onclick="setFmt('story')">📲 Story 9:16</button>
+    </div>
+    <!-- Unit tabs -->
+    <div class="unit-tab-grp">
+      <button class="unit-tab on" data-u="logo"     onclick="selectUnit('logo')">⬤ Logo</button>
+      <button class="unit-tab"    data-u="titles"   onclick="selectUnit('titles')">T Titles</button>
+      <button class="unit-tab"    data-u="profiles" onclick="selectUnit('profiles')">◎ Profiles</button>
+    </div>
+    <!-- Add person -->
+    <button class="btn" onclick="addPerson()">＋ Person</button>
+    <!-- Frame -->
+    <div class="sl-row" style="background:#111;border-radius:8px;padding:6px 10px;">
+      <label style="font-size:11px;color:#888;white-space:nowrap;min-width:40px">Frame</label>
+      <input type="range" id="sl-frame" min="0" max="60" value="0" oninput="onFrameSlider()" style="width:70px;accent-color:#fff;cursor:pointer">
+      <span style="font-size:11px;color:#aaa;min-width:22px;text-align:right" id="sv-frame">0</span>
+      <input type="color" id="frame-color" value="#ffffff" oninput="onFrameSlider()" style="width:26px;height:22px;border:none;border-radius:5px;cursor:pointer;background:none;padding:0;margin-left:4px">
+    </div>
+    <!-- Reset -->
+    <button class="btn" onclick="resetAll()" style="color:#f87171">↺ Reset</button>
+    <!-- Export -->
+    <div class="exp-wrap">
+      <button class="btn" onclick="toggleExp(event)">⬇ Export ▾</button>
+      <div class="exp-drop" id="exp-drop">
+        <div class="exp-opt" onclick="doExport(1)">1× <span style="color:#555">original size</span></div>
+        <div class="exp-opt" onclick="doExport(2)">2× <span style="color:#555">2K</span></div>
+        <div class="exp-opt" onclick="doExport(4)">4× <span style="color:#555">4K</span></div>
+        <div class="exp-custom">
+          <input id="cw" placeholder="W px" type="number">
+          <input id="ch" placeholder="H px" type="number">
+          <button onclick="doExportCustom()">Go</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LOGO controls ── -->
+  <div class="ctrl-panel visible" id="ctrl-logo">
+    <div class="sl-row"><label>Size</label>
+      <input type="range" id="sl-lsz" min="80" max="400" value="220" oninput="onSlider()">
+      <span class="sl-val" id="sv-lsz">220</span></div>
+    <div class="sl-row"><label>Ring thickness</label>
+      <input type="range" id="sl-lrw" min="1" max="16" value="4" oninput="onSlider('lrw')">
+      <span class="sl-val" id="sv-lrw">4</span>
+      <button id="ring-link-btn" onclick="toggleRingLink()" title="Link ring thickness" style="background:#2a2a3e;border:none;color:#818cf8;border-radius:6px;padding:3px 7px;cursor:pointer;font-size:13px;margin-left:2px">🔗</button>
+    </div>
+    <div class="sl-row"><label>White gap</label>
+      <input type="range" id="sl-lwg" min="0" max="50" value="8" oninput="onSlider()">
+      <span class="sl-val" id="sv-lwg">8</span></div>
+    <button class="btn" onclick="resetUnit('logo')" style="font-size:11px;padding:5px 10px;color:#818cf8">↺ Reset logo</button>
+  </div>
+
+  <!-- ── TITLES controls ── -->
+  <div class="ctrl-panel" id="ctrl-titles">
+    <div class="sl-row"><label>Main font size</label>
+      <input type="range" id="sl-tmfz" min="20" max="120" value="52" oninput="onSlider()">
+      <span class="sl-val" id="sv-tmfz">52</span></div>
+    <div class="sl-row"><label>Sub font size</label>
+      <input type="range" id="sl-tsfz" min="14" max="80" value="36" oninput="onSlider()">
+      <span class="sl-val" id="sv-tsfz">36</span></div>
+    <div class="sl-row"><label>Line gap</label>
+      <input type="range" id="sl-tlg" min="0" max="60" value="10" oninput="onSlider()">
+      <span class="sl-val" id="sv-tlg">10</span></div>
+    <button class="btn" onclick="resetUnit('titles')" style="font-size:11px;padding:5px 10px;color:#4ade80">↺ Reset titles</button>
+  </div>
+
+  <!-- ── PROFILES controls ── -->
+  <div class="ctrl-panel" id="ctrl-profiles">
+    <div class="sl-row"><label>Circle size</label>
+      <input type="range" id="sl-pcz" min="50" max="240" value="148" oninput="onSlider()">
+      <span class="sl-val" id="sv-pcz">148</span></div>
+    <div class="sl-row"><label>Ring thickness</label>
+      <input type="range" id="sl-prw" min="1" max="14" value="3" oninput="onSlider('prw')">
+      <span class="sl-val" id="sv-prw">3</span>
+      <button onclick="toggleRingLink()" title="Link ring thickness" style="background:#2a1a1a;border:none;color:#f87171;border-radius:6px;padding:3px 7px;cursor:pointer;font-size:13px;margin-left:2px" id="ring-link-btn2">🔗</button>
+    </div>
+    <div class="sl-row"><label>White gap</label>
+      <input type="range" id="sl-pwg" min="0" max="30" value="6" oninput="onSlider()">
+      <span class="sl-val" id="sv-pwg">6</span></div>
+    <div class="sl-row"><label>H spacing</label>
+      <input type="range" id="sl-phg" min="4" max="80" value="18" oninput="onSlider()">
+      <span class="sl-val" id="sv-phg">18</span></div>
+    <div class="sl-row"><label>Row spacing</label>
+      <input type="range" id="sl-prg" min="4" max="80" value="18" oninput="onSlider()">
+      <span class="sl-val" id="sv-prg">18</span></div>
+    <div class="sl-row"><label>Name size</label>
+      <input type="range" id="sl-pnf" min="8" max="44" value="22" oninput="onSlider()">
+      <span class="sl-val" id="sv-pnf">22</span></div>
+    <div class="sl-row"><label>Circle→Name gap</label>
+      <input type="range" id="sl-png" min="2" max="30" value="7" oninput="onSlider()">
+      <span class="sl-val" id="sv-png">7</span></div>
+    <button class="btn" onclick="resetUnit('profiles')" style="font-size:11px;padding:5px 10px;color:#f87171">↺ Reset profiles</button>
+  </div>
+</div>
+
+<div id="hint">Drag ⠿ handle to move a unit &nbsp;·&nbsp; Click circle to change photo &nbsp;·&nbsp; Drag circle to reorder &nbsp;·&nbsp; Hover for ✕</div>
+
+<!-- ══════════ CANVAS ══════════ -->
+<div id="scaler">
+  <div id="canvas">
+
+  <div id="canvas-inner">
+
+    <!-- UNIT: Logo -->
+    <div class="canvas-unit" id="unit-logo" data-unit="logo">
+      <div class="unit-handle" id="handle-logo">⠿</div>
+      <div id="logo-outer" class="logo-outer ig-grad" onclick="pickLogo()">
+        <div id="logo-white" class="logo-white">
+          <div id="logo-inner">
+            <span id="logo-ph" class="logo-ph">Click to<br>add logo</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Emoji bubble (positioned relative to logo, outside unit for z-index) -->
+    <div id="emoji-bubble" onclick="openEmo()">
+      <span id="emoji-char">🍿</span>
+    </div>
+
+    <!-- UNIT: Titles -->
+    <div class="canvas-unit" id="unit-titles" data-unit="titles">
+      <div class="unit-handle" id="handle-titles">⠿</div>
+      <div id="main-title" contenteditable="true" spellcheck="false">הייליטס דוקומנטריים: מהנייד לקולנוע</div>
+      <div id="subtitle"   contenteditable="true" spellcheck="false">שני | 26.5 | 21:00 | סינמטק 1</div>
+    </div>
+
+    <!-- UNIT: Profiles -->
+    <div class="canvas-unit" id="unit-profiles" data-unit="profiles">
+      <div class="unit-handle" id="handle-profiles">⠿</div>
+      <div id="people-area"></div>
+    </div>
+
+  </div><!-- /canvas-inner -->
+  </div><!-- /canvas -->
+</div>
+
+<input type="file" id="logo-file" accept="image/*" style="display:none" onchange="onLogoFile(event)">
+
+<!-- Emoji modal -->
+<div id="emo-modal">
+  <div class="emo-box">
+    <h3>Swap emoji</h3>
+    <div class="emo-grid" id="emo-grid"></div>
+    <div class="emo-custom">
+      <input id="emo-inp" type="text" maxlength="4" placeholder="✏">
+      <button onclick="applyEmo(document.getElementById('emo-inp').value)">Set</button>
+    </div>
+    <button class="emo-close" onclick="closeEmo()">Close</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════ STATE ═══════════════════════════════════
+
+var FMT = 'promo';
+
+// Default slider values (for reset)
+var DEFAULT_SL = {
+  lsz:220, lrw:4, lwg:8,
+  tmfz:52, tsfz:36, tlg:10,
+  pcz:148, prw:3, pwg:6, phg:18, prg:18, pnf:22, png:7
+};
+
+var CANVAS = {
+  promo:   { w:1920, h:1080 },
+  profile: { w:1080, h:1080 },
+  story:   { w:1080, h:1920 }
+};
+
+// Default unit positions per format (px, full canvas coords)
+// Promo: logo top-LEFT corner, titles to the RIGHT of logo, profiles bottom center
+var DEF_POS = {
+  promo: {
+    logo:     { x:1640, y:60  },   // right side — Y-axis locked during drag
+    titles:   { x:60,   y:80  },
+    profiles: { x:0,    y:600 }    // x=0 → auto-centered
+  },
+  profile: {
+    logo:     { x:800,  y:60  },
+    titles:   { x:55,   y:80  },
+    profiles: { x:0,    y:700 }
+  },
+  story: {
+    logo:     { x:800,  y:80  },
+    titles:   { x:55,   y:130 },
+    profiles: { x:0,    y:1640 }
+  }
+};
+
+// Live positions (set on format switch or drag)
+var POS = {};
+
+// Slider values (independent of format)
+var SL = {
+  // Logo
+  lsz: 220, lrw: 4, lwg: 8,
+  // Titles
+  tmfz: 52, tsfz: 36, tlg: 10,
+  // Profiles
+  pcz: 148, prw: 3, pwg: 6,
+  phg: 18, prg: 18, pnf: 22, png: 7
+};
+
+var people = [
+  { name:'Ronni Azulay',     img:null },
+  { name:'Hani Sirkis',      img:null },
+  { name:'Dali Beauty',      img:null },
+  { name:'Leo Liberman',     img:null },
+  { name:'Naama Sinigaglia', img:null },
+  { name:'Yochanan Twina',   img:null },
+  { name:'Bar Peleg',        img:null },
+  { name:'Alex Farfuri',     img:null }
+];
+
+var activeUnit  = 'logo';
+var RING_LINKED = true;
+var FRAME_W     = 0;
+
+// ═══════════════════════════════════ SLIDER SYNC ═════════════════════════════
+
+var SL_MAP = {
+  'sl-lsz':'lsz','sl-lrw':'lrw','sl-lwg':'lwg',
+  'sl-tmfz':'tmfz','sl-tsfz':'tsfz','sl-tlg':'tlg',
+  'sl-pcz':'pcz','sl-prw':'prw','sl-pwg':'pwg',
+  'sl-phg':'phg','sl-prg':'prg','sl-pnf':'pnf','sl-png':'png'
+};
+
+function onSlider(changed) {
+  for (var id in SL_MAP) {
+    var el = document.getElementById(id);
+    if (!el) continue;
+    var v = parseInt(el.value, 10);
+    SL[SL_MAP[id]] = v;
+    document.getElementById(id.replace('sl-','sv-')).textContent = v;
+  }
+  // Sync ring thickness if linked
+  if (RING_LINKED) {
+    if (changed === 'lrw') {
+      SL.prw = SL.lrw;
+      document.getElementById('sl-prw').value = SL.lrw;
+      document.getElementById('sv-prw').textContent = SL.lrw;
+    } else if (changed === 'prw') {
+      SL.lrw = SL.prw;
+      document.getElementById('sl-lrw').value = SL.prw;
+      document.getElementById('sv-lrw').textContent = SL.prw;
+    }
+  }
+  render();
+}
+
+function getContentScale() {
+  return FRAME_W > 0 ? (CANVAS[FMT].w - FRAME_W * 2) / CANVAS[FMT].w : 1;
+}
+
+function applyFrameTransform() {
+  var inner = document.getElementById('canvas-inner');
+  var col   = document.getElementById('frame-color').value || '#ffffff';
+  document.getElementById('canvas').style.backgroundColor = col;
+  if (FRAME_W > 0) {
+    var cs = getContentScale();
+    inner.style.transform = 'translate(' + FRAME_W + 'px,' + FRAME_W + 'px) scale(' + cs + ')';
+  } else {
+    inner.style.transform = '';
+  }
+}
+
+function onFrameSlider() {
+  FRAME_W = parseInt(document.getElementById('sl-frame').value, 10);
+  document.getElementById('sv-frame').textContent = FRAME_W;
+  render();
+}
+
+function toggleRingLink() {
+  RING_LINKED = !RING_LINKED;
+  var on  = '🔗'; var off = '⛓️‍💥';
+  var col1 = RING_LINKED ? '#818cf8' : '#555';
+  var col2 = RING_LINKED ? '#f87171' : '#555';
+  var lbl  = RING_LINKED ? on : off;
+  var b1 = document.getElementById('ring-link-btn');
+  var b2 = document.getElementById('ring-link-btn2');
+  if (b1) { b1.textContent = lbl; b1.style.color = col1; }
+  if (b2) { b2.textContent = lbl; b2.style.color = col2; }
+  // Sync immediately when linking
+  if (RING_LINKED) {
+    SL.prw = SL.lrw;
+    document.getElementById('sl-prw').value = SL.lrw;
+    document.getElementById('sv-prw').textContent = SL.lrw;
+    render();
+  }
+}
+
+function syncSliderUI() {
+  for (var id in SL_MAP) {
+    var el = document.getElementById(id);
+    if (!el) continue;
+    el.value = SL[SL_MAP[id]];
+    document.getElementById(id.replace('sl-','sv-')).textContent = SL[SL_MAP[id]];
+  }
+}
+
+// ═══════════════════════════════════ UNIT TAB ════════════════════════════════
+
+function selectUnit(u) {
+  activeUnit = u;
+  document.querySelectorAll('.unit-tab').forEach(function(b){
+    b.classList.toggle('on', b.dataset.u === u);
+  });
+  ['logo','titles','profiles'].forEach(function(n){
+    document.getElementById('ctrl-'+n).classList.toggle('visible', n === u);
+  });
+}
+
+// ═══════════════════════════════════ FORMAT ══════════════════════════════════
+
+function setFmt(f) {
+  FMT = f;
+  document.querySelectorAll('.fmt-btn').forEach(function(b){
+    b.classList.toggle('on', b.dataset.fmt === f);
+  });
+  // Reset positions to defaults
+  var d = DEF_POS[f];
+  POS = { logo: {x:d.logo.x, y:d.logo.y}, titles: {x:d.titles.x, y:d.titles.y},
+          profiles: {x:d.profiles.x, y:d.profiles.y} };
+  render();
+}
+
+// ═══════════════════════════════════ RENDER ══════════════════════════════════
+
+function render() {
+  var C = CANVAS[FMT];
+  var canvas = document.getElementById('canvas');
+  canvas.style.width  = C.w + 'px';
+  canvas.style.height = C.h + 'px';
+
+  renderLogo(C);
+  renderTitles(C);
+  renderProfiles(C);
+  applyFrameTransform();
+  scaleCanvas();
+}
+
+// ── Logo ──
+function renderLogo(C) {
+  var sz  = SL.lsz;
+  var rw  = SL.lrw;
+  var wg  = SL.lwg;
+  var wSz = sz - rw * 2;
+  var iSz = wSz - wg * 2;
+
+  // Clamp logo so it stays fully inside canvas
+  var ebSz = Math.round(sz * 0.30);
+  var ebTop = Math.ceil(ebSz * 0.3); // emoji bubble overhangs above logo
+  POS.logo.x = Math.max(0, Math.min(C.w - sz, POS.logo.x));
+  POS.logo.y = Math.max(ebTop, Math.min(C.h - sz, POS.logo.y));
+
+  var unit = document.getElementById('unit-logo');
+  unit.style.left = POS.logo.x + 'px';
+  unit.style.top  = POS.logo.y + 'px';
+  unit.style.width  = sz + 'px';
+  unit.style.height = sz + 'px';
+
+  var outer = document.getElementById('logo-outer');
+  outer.style.width  = outer.style.height  = sz + 'px';
+
+  var white = document.getElementById('logo-white');
+  white.style.width  = white.style.height  = wSz + 'px';
+
+  var inner = document.getElementById('logo-inner');
+  inner.style.width   = inner.style.height  = iSz + 'px';
+  inner.style.borderRadius = '50%';
+  inner.style.overflow     = 'hidden';
+  inner.style.display      = 'flex';
+  inner.style.alignItems   = 'center';
+  inner.style.justifyContent = 'center';
+  inner.style.fontSize = Math.round(iSz * 0.09) + 'px';
+  document.getElementById('logo-ph').style.fontSize = Math.round(iSz * 0.09) + 'px';
+
+  // Emoji bubble: top-right of logo, overlapping, speech-bubble style
+  var ebSz = Math.round(sz * 0.30);
+  var eb   = document.getElementById('emoji-bubble');
+  eb.style.width    = eb.style.height  = ebSz + 'px';
+  eb.style.fontSize = Math.round(ebSz * 0.55) + 'px';
+  eb.style.left     = (POS.logo.x + sz - ebSz * 0.6) + 'px';
+  eb.style.top      = (POS.logo.y - ebSz * 0.3) + 'px';
+}
+
+// ── Titles ──
+function renderTitles(C) {
+  var unit = document.getElementById('unit-titles');
+  var logoRight = POS.logo.x + SL.lsz;
+  var maxW;
+  if (POS.titles.x >= logoRight) {
+    // Titles to the RIGHT of logo → fill remaining canvas
+    maxW = Math.max(200, C.w - POS.titles.x - 40);
+  } else {
+    // Titles to the LEFT of logo → stop before logo
+    maxW = Math.max(200, POS.logo.x - POS.titles.x - 24);
+  }
+  unit.style.left     = POS.titles.x + 'px';
+  unit.style.top      = POS.titles.y + 'px';
+  unit.style.maxWidth = maxW + 'px';
+  unit.style.direction  = 'rtl';
+
+  var mt  = document.getElementById('main-title');
+  var sub = document.getElementById('subtitle');
+  mt.style.fontSize   = SL.tmfz + 'px';
+  mt.style.textAlign  = 'right';
+  sub.style.fontSize  = SL.tsfz + 'px';
+  sub.style.textAlign = 'right';
+  sub.style.marginTop = SL.tlg + 'px';
+}
+
+// ── Profiles ──
+function renderProfiles(C) {
+  var area   = document.getElementById('people-area');
+  var N      = people.length;
+  var cSz    = SL.pcz;
+  var rw     = SL.prw;
+  var wg     = SL.pwg;
+  var photoSz = cSz - (rw + wg) * 2;
+  var hGap   = SL.phg;
+  var rGap   = SL.prg;
+  var nFz    = SL.pnf;
+  var nGap   = SL.png;
+  var nameH  = Math.round(nFz * 1.5);
+  var cardH  = cSz + nGap + nameH;
+
+  var paddedW  = C.w - 80;
+  var maxPerRow = Math.max(1, Math.floor((paddedW + hGap) / (cSz + hGap)));
+  var numRows   = Math.ceil(N / maxPerRow);
+  var areaH     = numRows * cardH + Math.max(0, numRows - 1) * rGap;
+  var areaW     = Math.min(N, maxPerRow) * (cSz + hGap) - hGap;
+
+  // Profiles unit position — clamp so nothing can exit canvas
+  var unit = document.getElementById('unit-profiles');
+  var px   = (POS.profiles.x === 0) ? Math.round((C.w - areaW) / 2) : POS.profiles.x;
+  px = Math.max(0, Math.min(px, C.w - areaW > 0 ? C.w - areaW : 0));
+  var clampedW = Math.min(areaW, C.w);
+  unit.style.left     = px + 'px';
+  unit.style.top      = POS.profiles.y + 'px';
+  unit.style.width    = clampedW + 'px';
+  unit.style.overflow = 'hidden';
+
+  area.style.gap = rGap + 'px';
+  area.innerHTML = '';
+
+  for (var r = 0; r < numRows; r++) {
+    var row = document.createElement('div');
+    row.className = 'people-row';
+    row.style.gap = hGap + 'px';
+    var s = r * maxPerRow, e = Math.min(s + maxPerRow, N);
+    for (var i = s; i < e; i++) row.appendChild(makeCard(i, cSz, rw, wg, photoSz, nFz, nGap));
+    area.appendChild(row);
+  }
+}
+
+// ── Person card ──
+function makeCard(i, cSz, rw, wg, photoSz, nFz, nGap) {
+  var p = people[i];
+  var whiteSz = cSz - rw * 2;
+
+  var div = document.createElement('div');
+  div.className = 'person'; div.dataset.idx = i;
+  div.style.width = cSz + 'px'; div.style.gap = nGap + 'px';
+  div.style.alignItems = 'center';
+
+  var outer = document.createElement('div');
+  outer.className = 'ring-outer ig-grad';
+  outer.style.width = outer.style.height = cSz + 'px';
+
+  var white = document.createElement('div');
+  white.className = 'ring-white';
+  white.style.width = white.style.height = whiteSz + 'px';
+
+  var photo = document.createElement('div');
+  photo.className = 'person-photo';
+  photo.style.width = photo.style.height = photoSz + 'px';
+  if (p.img) {
+    var img = document.createElement('img'); img.src = p.img; photo.appendChild(img);
+  } else {
+    photo.innerHTML = 'drop<br>photo';
+    photo.style.fontSize = Math.round(photoSz * 0.1) + 'px';
+  }
+  var ov = document.createElement('div');
+  ov.className = 'photo-ov'; ov.textContent = '📷';
+  ov.style.fontSize = Math.round(photoSz * 0.2) + 'px';
+  ov.addEventListener('click', (function(idx){ return function(e){ e.stopPropagation(); pickPhoto(idx); }; })(i));
+  photo.appendChild(ov);
+
+  // File drop
+  outer.addEventListener('dragover', function(e){ if (e.dataTransfer.types.indexOf('Files')>=0){ e.preventDefault(); e.stopPropagation(); }});
+  outer.addEventListener('drop', function(e){ if (e.dataTransfer.files.length){ e.preventDefault(); e.stopPropagation(); loadPhotoFile(e.dataTransfer.files[0], i); }});
+
+  white.appendChild(photo);
+  outer.appendChild(white);
+  div.appendChild(outer);
+
+  var name = document.createElement('div');
+  name.className = 'person-name'; name.contentEditable = 'true'; name.spellcheck = false;
+  name.textContent = p.name; name.style.fontSize = nFz + 'px';
+  name.style.width = cSz + 'px'; name.style.textAlign = 'center';
+  name.addEventListener('input', (function(idx){ return function(){ people[idx].name = name.textContent; }; })(i));
+  name.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+  div.appendChild(name);
+
+  var xBtn = document.createElement('div');
+  xBtn.className = 'remove-btn'; xBtn.textContent = '✕';
+  xBtn.addEventListener('click', (function(idx){ return function(e){
+    e.stopPropagation(); people.splice(idx, 1); render();
+  }; })(i));
+  div.appendChild(xBtn);
+
+  // Dedicated grab handle for reorder drag
+  var pHandle = document.createElement('div');
+  pHandle.className = 'person-handle'; pHandle.textContent = '⠿';
+  div.appendChild(pHandle);
+
+  setupPersonDrag(div, pHandle, i);
+  return div;
+}
+
+// ═══════════════════════════════════ PERSON DRAG (reorder) ═══════════════════
+
+var _pDragSrc = null;
+
+function setupPersonDrag(card, handle, origIdx) {
+  handle.addEventListener('pointerdown', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    handle.setPointerCapture(e.pointerId);
+    var scaleF = getCanvasScale();
+    var rect   = card.getBoundingClientRect();
+    var ghost  = card.cloneNode(true);
+    ghost.style.cssText += 'position:fixed;pointer-events:none;z-index:999;opacity:.85;'+
+      'transform:scale('+scaleF+');transform-origin:top left;left:'+rect.left+'px;top:'+rect.top+'px;';
+    document.body.appendChild(ghost);
+    _pDragSrc = { origIdx:origIdx, card:card, ghost:ghost, scaleF:scaleF,
+                  ox:e.clientX-rect.left, oy:e.clientY-rect.top, currentTarget:origIdx };
+    card.classList.add('dragging');
+  });
+  handle.addEventListener('pointermove', function(e) {
+    if (!_pDragSrc || _pDragSrc.origIdx !== origIdx) return;
+    e.preventDefault();
+    _pDragSrc.ghost.style.left = (e.clientX - _pDragSrc.ox) + 'px';
+    _pDragSrc.ghost.style.top  = (e.clientY - _pDragSrc.oy) + 'px';
+    _pDragSrc.ghost.style.display = 'none';
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    _pDragSrc.ghost.style.display = '';
+    document.querySelectorAll('.person').forEach(function(c){ c.classList.remove('drop-target'); });
+    var target = el && el.closest('.person');
+    if (target && target !== _pDragSrc.card) {
+      target.classList.add('drop-target');
+      _pDragSrc.currentTarget = parseInt(target.dataset.idx, 10);
+    } else { _pDragSrc.currentTarget = _pDragSrc.origIdx; }
+  });
+  handle.addEventListener('pointerup', function(e) {
+    if (!_pDragSrc || _pDragSrc.origIdx !== origIdx) return;
+    var src = _pDragSrc.origIdx, dst = _pDragSrc.currentTarget;
+    _pDragSrc.ghost.remove();
+    document.querySelectorAll('.person').forEach(function(c){ c.classList.remove('dragging','drop-target'); });
+    _pDragSrc = null;
+    if (src !== dst && dst >= 0 && dst < people.length) {
+      var tmp = people[src]; people[src] = people[dst]; people[dst] = tmp;
+      render();
+    }
+  });
+}
+
+// ═══════════════════════════════════ UNIT DRAG (move whole unit) ══════════════
+
+function setupUnitDrag(unitId, handleId, posKey, centeredX) {
+  var handle = document.getElementById(handleId);
+  var unit   = document.getElementById(unitId);
+  var active = false;
+  var ox, oy;
+
+  handle.addEventListener('pointerdown', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    handle.setPointerCapture(e.pointerId);
+    active = true;
+    var scale = getCanvasScale();
+    var cs    = getContentScale();
+    var rect  = unit.getBoundingClientRect();
+    // ox/oy: offset in logical canvas space
+    ox = (e.clientX - rect.left) / scale / cs;
+    oy = (e.clientY - rect.top)  / scale / cs;
+    unit.classList.add('dragging-unit');
+  });
+  handle.addEventListener('pointermove', function(e) {
+    if (!active) return;
+    e.preventDefault();
+    var scale    = getCanvasScale();
+    var cs       = getContentScale();
+    var scalerR  = document.getElementById('scaler').getBoundingClientRect();
+    var nx = Math.round(((e.clientX - scalerR.left) / scale - ox - FRAME_W) / cs);
+    var ny = Math.round(((e.clientY - scalerR.top)  / scale - oy - FRAME_W) / cs);
+    var C  = CANVAS[FMT];
+    var uW = unit.offsetWidth;
+    var uH = unit.offsetHeight;
+
+    // Logo: Y-axis only — X stays fixed at its default right-side position
+    if (posKey === 'logo') {
+      var ebSzDrag = Math.round(SL.lsz * 0.30);
+      var minY = Math.ceil(ebSzDrag * 0.3);
+      ny = Math.max(minY, Math.min(C.h - uH, ny));
+      POS[posKey].y = ny;
+      // x unchanged
+    }
+    // Profiles: Y-axis only — X auto-centered
+    else if (posKey === 'profiles') {
+      ny = Math.max(0, Math.min(C.h - uH, ny));
+      POS[posKey].y = ny;
+      // x stays at 0 (auto-centered in renderProfiles)
+    }
+    // Titles: free XY but cannot overlap logo
+    else if (posKey === 'titles') {
+      nx = Math.max(0, Math.min(C.w - uW, nx));
+      ny = Math.max(0, Math.min(C.h - uH, ny));
+      var MARGIN = 10;
+      var lx = POS.logo.x, ly = POS.logo.y, ls = SL.lsz;
+      var wouldOverlap = nx < lx + ls + MARGIN &&
+                         nx + uW > lx - MARGIN &&
+                         ny < ly + ls + MARGIN &&
+                         ny + uH > ly - MARGIN;
+      if (!wouldOverlap) {
+        POS[posKey].x = nx;
+        POS[posKey].y = ny;
+      }
+    }
+
+    // Live DOM update (fast path — avoid full re-render during drag)
+    // Logo + Profiles: X is fixed — only update top
+    if (posKey === 'titles') {
+      unit.style.left = POS[posKey].x + 'px';
+    }
+    unit.style.top = POS[posKey].y + 'px';
+    if (posKey === 'logo') updateEmojiBubblePos();
+  });
+  handle.addEventListener('pointerup', function(e) {
+    if (!active) return;
+    active = false;
+    unit.classList.remove('dragging-unit');
+  });
+}
+
+function updateEmojiBubblePos() {
+  var sz  = SL.lsz;
+  var ebSz = Math.round(sz * 0.30);
+  var eb   = document.getElementById('emoji-bubble');
+  eb.style.left = (POS.logo.x + sz - ebSz * 0.6) + 'px';
+  eb.style.top  = (POS.logo.y - ebSz * 0.3) + 'px';
+}
+
+// ═══════════════════════════════════ HELPERS ═════════════════════════════════
+
+function getCanvasScale() {
+  var F      = CANVAS[FMT];
+  var scaler = document.getElementById('scaler');
+  var rect   = scaler.getBoundingClientRect();
+  return rect.width / F.w;
+}
+
+function scaleCanvas() {
+  var F = CANVAS[FMT];
+  var maxW = window.innerWidth  - 28;
+  var maxH = window.innerHeight - 210;
+  var scale = Math.min(maxW / F.w, maxH / F.h, 1);
+  var scaler = document.getElementById('scaler');
+  scaler.style.transform     = 'scale(' + scale + ')';
+  scaler.style.width         = F.w + 'px';
+  scaler.style.height        = F.h + 'px';
+  scaler.style.marginBottom  = Math.round((scale - 1) * F.h) + 'px';
+  scaler.style.transformOrigin = 'top center';
+}
+window.addEventListener('resize', scaleCanvas);
+
+// ═══════════════════════════════════ LOGO FILE ════════════════════════════════
+
+function pickLogo() { document.getElementById('logo-file').click(); }
+function onLogoFile(e) {
+  var f = e.target.files[0]; if (!f) return;
+  var r = new FileReader();
+  r.onload = function(ev) {
+    var li = document.getElementById('logo-inner');
+    li.innerHTML = '<img class="logo-img" src="'+ev.target.result+'">';
+  };
+  r.readAsDataURL(f);
+}
+
+// ═══════════════════════════════════ PHOTO ════════════════════════════════════
+
+var _pendingPhoto = null;
+function pickPhoto(i) {
+  _pendingPhoto = i;
+  var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = function(e){ if (e.target.files[0]) loadPhotoFile(e.target.files[0], _pendingPhoto); };
+  inp.click();
+}
+function loadPhotoFile(file, i) {
+  var r = new FileReader();
+  r.onload = function(e){ people[i].img = e.target.result; render(); };
+  r.readAsDataURL(file);
+}
+
+// ═══════════════════════════════════ ADD PERSON ═══════════════════════════════
+
+function addPerson() { people.push({ name:'New Person', img:null }); render(); }
+
+// ═══════════════════════════════════ EMOJI ════════════════════════════════════
+
+var EMO = ['🍿','🎬','🎥','🏆','⭐','🎞','📽','🎤','🎧','🎵','🔥','✨','💥','🌟','🎭','🎪','🎉','🏅','📸','🙌'];
+function openEmo() {
+  var g = document.getElementById('emo-grid'); g.innerHTML = '';
+  EMO.forEach(function(em){
+    var d = document.createElement('div'); d.className = 'emo-opt'; d.textContent = em;
+    d.onclick = function(){ applyEmo(em); }; g.appendChild(d);
+  });
+  document.getElementById('emo-modal').classList.add('open');
+}
+function closeEmo() { document.getElementById('emo-modal').classList.remove('open'); }
+function applyEmo(em) { if (em) document.getElementById('emoji-char').textContent = em; closeEmo(); }
+document.getElementById('emo-modal').addEventListener('click', function(e){ if (e.target===this) closeEmo(); });
+
+// ═══════════════════════════════════ EXPORT ═══════════════════════════════════
+
+function toggleExp(e) { e.stopPropagation(); document.getElementById('exp-drop').classList.toggle('open'); }
+document.addEventListener('click', function(){ document.getElementById('exp-drop').classList.remove('open'); });
+function doExport(sc) { document.getElementById('exp-drop').classList.remove('open'); _export(sc); }
+function doExportCustom() {
+  var cw = parseInt(document.getElementById('cw').value,10);
+  var ch = parseInt(document.getElementById('ch').value,10);
+  if (!cw||!ch){ alert('Enter W and H'); return; }
+  document.getElementById('exp-drop').classList.remove('open');
+  _export(cw / CANVAS[FMT].w);
+}
+function _export(scale) {
+  var F = CANVAS[FMT], scaler = document.getElementById('scaler');
+  var prev = scaler.style.transform;
+  scaler.style.transform = 'scale(1)';
+  document.body.classList.add('exporting');
+  setTimeout(function(){
+    html2canvas(document.getElementById('canvas'),{
+      scale:scale, useCORS:true, allowTaint:true,
+      backgroundColor:'#ffffff', width:F.w, height:F.h,
+      scrollX:0, scrollY:0, windowWidth:F.w, windowHeight:F.h, logging:false
+    }).then(function(c){
+      document.body.classList.remove('exporting');
+      scaler.style.transform = prev;
+      var a = document.createElement('a');
+      a.download = 'highlights-'+FMT+'-'+Math.round(F.w*scale)+'x'+Math.round(F.h*scale)+'.png';
+      a.href = c.toDataURL('image/png'); a.click();
+    }).catch(function(err){
+      document.body.classList.remove('exporting');
+      scaler.style.transform = prev;
+      alert('Export error: '+err.message);
+    });
+  }, 80);
+}
+
+// ═══════════════════════════════════ RESET ═══════════════════════════════════
+
+var UNIT_SL_KEYS = {
+  logo:     ['lsz','lrw','lwg'],
+  titles:   ['tmfz','tsfz','tlg'],
+  profiles: ['pcz','prw','pwg','phg','prg','pnf','png']
+};
+
+function resetUnit(u) {
+  // Reset sliders for this unit
+  var keys = UNIT_SL_KEYS[u];
+  keys.forEach(function(k){
+    SL[k] = DEFAULT_SL[k];
+    var el = document.getElementById('sl-'+k);
+    var sv = document.getElementById('sv-'+k);
+    if (el) el.value = DEFAULT_SL[k];
+    if (sv) sv.textContent = DEFAULT_SL[k];
+  });
+  // Reset position for this unit
+  var d = DEF_POS[FMT];
+  POS[u] = { x: d[u].x, y: d[u].y };
+  render();
+}
+
+function resetAll() {
+  // Reset all sliders
+  for (var k in DEFAULT_SL) {
+    SL[k] = DEFAULT_SL[k];
+    var el = document.getElementById('sl-'+k);
+    var sv = document.getElementById('sv-'+k);
+    if (el) el.value = DEFAULT_SL[k];
+    if (sv) sv.textContent = DEFAULT_SL[k];
+  }
+  // Reset all positions
+  var d = DEF_POS[FMT];
+  POS = {
+    logo:     { x:d.logo.x,     y:d.logo.y },
+    titles:   { x:d.titles.x,   y:d.titles.y },
+    profiles: { x:d.profiles.x, y:d.profiles.y }
+  };
+  render();
+}
+
+// ═══════════════════════════════════ INIT ════════════════════════════════════
+
+// Set initial positions
+setFmt('promo');
+syncSliderUI();
+
+// Set up unit drag handles
+setupUnitDrag('unit-logo',     'handle-logo',     'logo',     false);
+setupUnitDrag('unit-titles',   'handle-titles',   'titles',   false);
+setupUnitDrag('unit-profiles', 'handle-profiles', 'profiles', true);
+</script>
+</body>
+</html>
